@@ -14,6 +14,9 @@ import type {
 } from '../types.js';
 import { MFG_FIELDS, VARIANCE_THRESHOLDS } from '../constants.js';
 
+// Module-level flag: once standard_price is access-denied, don't retry
+let useStandardPriceFallback = false;
+
 // =============================================================================
 // STANDARD COST
 // =============================================================================
@@ -112,21 +115,29 @@ export async function calculateActualCost(
   const productIds = Array.from(componentMap.keys());
   if (productIds.length > 0) {
     let products: ProductProduct[];
-    try {
+    if (useStandardPriceFallback) {
       products = await client.read<ProductProduct>(
         'product.product', productIds,
-        ['id', 'standard_price', 'standard_cost_manual']
+        ['id', 'standard_cost_manual']
       );
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
-        warnings.push('standard_price access denied — using standard_cost_manual as fallback.');
+    } else {
+      try {
         products = await client.read<ProductProduct>(
           'product.product', productIds,
-          ['id', 'standard_cost_manual']
+          ['id', 'standard_price', 'standard_cost_manual']
         );
-      } else {
-        throw error;
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
+          useStandardPriceFallback = true;
+          warnings.push('standard_price access denied — using standard_cost_manual as fallback.');
+          products = await client.read<ProductProduct>(
+            'product.product', productIds,
+            ['id', 'standard_cost_manual']
+          );
+        } else {
+          throw error;
+        }
       }
     }
     for (const p of products) {

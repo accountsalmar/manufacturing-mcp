@@ -67,7 +67,9 @@ export function registerCostTools(server: McpServer): void {
           return { content: [{ type: 'text', text: md }] };
         });
       } catch (error) {
-        return { content: [{ type: 'text', text: `Error calculating standard cost: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[Standard Cost Error] ${errMsg}\n${error instanceof Error ? error.stack : ''}`);
+        return { content: [{ type: 'text', text: `Error calculating standard cost: ${errMsg}` }], isError: true };
       }
     }
   );
@@ -130,7 +132,9 @@ export function registerCostTools(server: McpServer): void {
           return { content: [{ type: 'text', text: md }] };
         });
       } catch (error) {
-        return { content: [{ type: 'text', text: `Error calculating actual cost: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+        const errMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[Actual Cost Error] ${errMsg}\n${error instanceof Error ? error.stack : ''}`);
+        return { content: [{ type: 'text', text: `Error calculating actual cost: ${errMsg}` }], isError: true };
       }
     }
   );

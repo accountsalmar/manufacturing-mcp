@@ -77,13 +77,13 @@ export function registerDiscoveryTools(server: McpServer): void {
               md += `- **${mo.name}** (ID: ${mo.id})\n`;
               md += `  Product: ${getRelationName(mo.product_id)} | Qty: ${mo.product_qty || '-'}\n`;
               md += `  State: ${formatMOState(mo.state)} | Start: ${formatDate(mo.date_start)}\n`;
-              if (mo.std_cost !== undefined || mo.mo_cost !== undefined) {
-                md += `  Std Cost: ${formatCurrency(mo.std_cost)} | Actual: ${formatCurrency(mo.mo_cost)}`;
-                if (mo.state === 'done' && (!mo.std_cost || mo.std_cost === 0) && (!mo.mo_cost || mo.mo_cost === 0)) {
-                  md += ` ⚠ No cost data`;
-                }
-                md += '\n';
+              const stdCost = typeof mo.std_cost === 'number' ? mo.std_cost : 0;
+              const moCost = typeof mo.mo_cost === 'number' ? mo.mo_cost : 0;
+              md += `  Std Cost: ${formatCurrency(stdCost)} | Actual: ${formatCurrency(moCost)}`;
+              if (mo.state === 'done' && stdCost === 0 && moCost === 0) {
+                md += ` ⚠ No cost data`;
               }
+              md += '\n';
               if (mo.partner_id) md += `  Customer: ${getRelationName(mo.partner_id)}\n`;
               if (mo.analytic_account_id) md += `  Job: ${getRelationName(mo.analytic_account_id)}\n`;
               md += '\n';
@@ -219,12 +219,19 @@ export function registerDiscoveryTools(server: McpServer): void {
       try {
         return await useClient(async (client) => {
           let result;
-          if (input.bom_id) {
-            result = await explodeBom(client, input.bom_id, input.quantity);
-          } else if (input.product_id) {
-            result = await getBomTree(client, input.product_id, input.quantity);
-          } else {
-            return { content: [{ type: 'text', text: 'Either bom_id or product_id must be provided.' }], isError: true };
+          try {
+            if (input.bom_id) {
+              result = await explodeBom(client, input.bom_id, input.quantity);
+            } else if (input.product_id) {
+              result = await getBomTree(client, input.product_id, input.quantity);
+            } else {
+              return { content: [{ type: 'text', text: 'Either bom_id or product_id must be provided.' }], isError: true };
+            }
+          } catch (bomError) {
+            const errMsg = bomError instanceof Error ? bomError.message : String(bomError);
+            const stack = bomError instanceof Error ? bomError.stack : '';
+            console.error(`[BOM Explosion Error] ${errMsg}\n${stack}`);
+            return { content: [{ type: 'text', text: `BOM explosion error: ${errMsg}` }], isError: true };
           }
 
           if (input.response_format === ResponseFormat.JSON) {

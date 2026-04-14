@@ -98,7 +98,10 @@ export function registerVarianceTools(server: McpServer): void {
           return { content: [{ type: 'text', text: md }] };
         });
       } catch (error) {
-        return { content: [{ type: 'text', text: `Error analyzing variance: ${error instanceof Error ? error.message : String(error)}` }], isError: true };
+        const errMsg = error instanceof Error ? error.message : String(error);
+        const stack = error instanceof Error ? error.stack : '';
+        console.error(`[Variance Analysis Error] ${errMsg}\n${stack}`);
+        return { content: [{ type: 'text', text: `Error analyzing variance: ${errMsg}` }], isError: true };
       }
     }
   );

@@ -13,6 +13,9 @@ import { MFG_FIELDS } from '../constants.js';
 
 const MAX_BOM_DEPTH = 10; // Safety limit for recursion
 
+// Module-level flag: once standard_price is access-denied, don't retry
+let useStandardPriceFallback = false;
+
 /**
  * Find the primary BOM for a product.
  * Searches mrp.bom by product_tmpl_id.
@@ -173,31 +176,43 @@ export async function explodeBom(
 
   const productsMap = new Map<number, ProductProduct>();
   if (productIds.length > 0) {
-    // Try with standard_price first, fall back to safe fields if access denied
-    try {
+    // Use safe fields if we already know standard_price is restricted
+    if (useStandardPriceFallback) {
       const products = await client.read<ProductProduct>(
         'product.product',
         productIds,
-        MFG_FIELDS.PRODUCT_COST_WITH_STD_PRICE as unknown as string[]
+        MFG_FIELDS.PRODUCT_COST as unknown as string[]
       );
       for (const p of products) {
         productsMap.set(p.id, p);
       }
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
-        // Fallback: read without standard_price (restricted field in Odoo 17)
-        warnings.push('standard_price access denied — using standard_cost_manual as fallback. Enable Technical Features on the API user for full cost data.');
+    } else {
+      // Try with standard_price first, fall back if access denied
+      try {
         const products = await client.read<ProductProduct>(
           'product.product',
           productIds,
-          MFG_FIELDS.PRODUCT_COST as unknown as string[]
+          MFG_FIELDS.PRODUCT_COST_WITH_STD_PRICE as unknown as string[]
         );
         for (const p of products) {
           productsMap.set(p.id, p);
         }
-      } else {
-        throw error;
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
+          useStandardPriceFallback = true; // Don't retry on subsequent calls
+          warnings.push('standard_price access denied — using standard_cost_manual as fallback. Enable Technical Features on the API user for full cost data.');
+          const products = await client.read<ProductProduct>(
+            'product.product',
+            productIds,
+            MFG_FIELDS.PRODUCT_COST as unknown as string[]
+          );
+          for (const p of products) {
+            productsMap.set(p.id, p);
+          }
+        } else {
+          throw error;
+        }
       }
     }
   }
