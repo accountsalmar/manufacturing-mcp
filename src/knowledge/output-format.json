@@ -1,0 +1,126 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "purpose": "Three-part output format specification for manufacturing cost analysis"
+  },
+
+  "output_structure": {
+    "description": "Cost analysis responses use a three-part format when applicable",
+    "parts": [
+      {
+        "part": 1,
+        "name": "BOM Cost Explosion Tree",
+        "when": "Any tool involving BOM structure or cost breakdown",
+        "format": "indented_tree"
+      },
+      {
+        "part": 2,
+        "name": "Variance Dashboard",
+        "when": "Any tool comparing standard vs actual costs",
+        "format": "markdown_table"
+      },
+      {
+        "part": 3,
+        "name": "Key Findings",
+        "when": "Always — every cost analysis ends with actionable findings",
+        "format": "numbered_list"
+      }
+    ]
+  },
+
+  "bom_tree_format": {
+    "description": "Indented hierarchical tree showing BOM explosion with costs at each level",
+    "connectors": {
+      "branch": "├── ",
+      "last": "└── ",
+      "pipe": "│   ",
+      "space": "    "
+    },
+    "line_format": "{connector}{product_name} ×{qty} @ {unit_cost} = {line_total}",
+    "subtotal_format": "{indent}[Subtotal: {subtotal}]",
+    "variance_annotation": " [{status} {variance_percent}]",
+    "example": [
+      "## BOM Cost Tree: Widget Assembly (Qty: 10)",
+      "",
+      "├── Sub-Assembly B ×20 (Standard: $100.00 | Actual: $110.00)",
+      "│   ├── Steel Sheet ×60 @ $2.50 = $150.00 → $165.00 [Unfavorable +10%]",
+      "│   ├── Welding Rod ×20 @ $5.00 = $100.00 → $100.00 [On Target]",
+      "│   └── Paint ×10 @ $8.00 = $80.00 → $76.00 [Favorable -5%]",
+      "├── Component C ×40 @ $5.00 = $200.00 → $210.00 [Unfavorable +5%]",
+      "└── Labor & Overhead = $300.00 → $315.00 [Unfavorable +5%]",
+      "",
+      "**Total Standard: $930.00 | Actual: $976.00 | Per Unit: $97.60**"
+    ]
+  },
+
+  "variance_dashboard_format": {
+    "description": "Markdown table comparing standard vs actual with variance columns",
+    "columns": ["Category", "Standard", "Actual", "Variance", "Var %", "Status"],
+    "status_indicators": {
+      "on_target": "ON TARGET",
+      "favorable": "FAVORABLE",
+      "unfavorable": "UNFAVORABLE",
+      "significant": "SIGNIFICANT",
+      "critical": "CRITICAL"
+    },
+    "status_rules": {
+      "favorable": "actual < standard (negative variance)",
+      "on_target": "abs(variance%) <= 5%",
+      "unfavorable": "5% < abs(variance%) <= 10%",
+      "significant": "10% < abs(variance%) <= 25%",
+      "critical": "abs(variance%) > 25%"
+    },
+    "example": [
+      "## Variance Dashboard",
+      "",
+      "| Category | Standard | Actual | Variance | Var % | Status |",
+      "|----------|----------|--------|----------|-------|--------|",
+      "| Materials | $630.00 | $661.00 | +$31.00 | +4.9% | ON TARGET |",
+      "| Labor | $200.00 | $215.00 | +$15.00 | +7.5% | UNFAVORABLE |",
+      "| Overhead | $100.00 | $100.00 | $0.00 | 0.0% | ON TARGET |",
+      "| **TOTAL** | **$930.00** | **$976.00** | **+$46.00** | **+4.9%** | **ON TARGET** |"
+    ]
+  },
+
+  "key_findings_format": {
+    "description": "Numbered list of actionable insights, prioritized by impact",
+    "max_items": 5,
+    "priority_order": [
+      "critical_variances",
+      "data_quality_warnings",
+      "efficiency_insights",
+      "cost_drivers",
+      "recommendations"
+    ],
+    "example": [
+      "## Key Findings",
+      "",
+      "1. **Material cost overrun of 4.9%** — Steel Sheet actual price ($2.75) exceeds standard ($2.50). Review supplier pricing or update standard cost.",
+      "2. **Labor efficiency loss of 7.5%** — Work Center WC-01 ran 15 minutes over planned time. Investigate bottleneck.",
+      "3. **Favorable paint cost** — Paint running 5% below standard ($7.60 vs $8.00). Consider locking in supplier contract.",
+      "4. **Scrap rate 2.1%** — 2 units scrapped from batch of 95. Within acceptable range (<5%).",
+      "5. **Recommendation**: Update standard cost for Steel Sheet to reflect current market pricing ($2.75)."
+    ]
+  },
+
+  "detail_level_rules": {
+    "summary": {
+      "bom_tree": "Top level only — show direct components with totals, no sub-component breakdown",
+      "variance_dashboard": "Total row only — no per-category breakdown (Materials/Labor/Overhead)",
+      "key_findings": "Max 3 items. Plain English, no accounting jargon. Focus on dollar impact and recommendations.",
+      "when_to_use": "Quick overview, executive summary, chat conversations"
+    },
+    "detailed": {
+      "bom_tree": "Full explosion to raw materials with subtotals at each level",
+      "variance_dashboard": "Full table with Materials, Labor, Overhead rows + Total row",
+      "key_findings": "Max 5 items. Mixed plain English + financial terms. Include variance percentages.",
+      "when_to_use": "Standard cost analysis, production review meetings, management reports"
+    },
+    "technical": {
+      "bom_tree": "Full explosion with per-component variance annotations and Odoo record IDs",
+      "variance_dashboard": "Full table + per-component material variance sub-table + per-work-center labor variance sub-table",
+      "key_findings": "Max 5 items. Full accounting terminology with GL account references. Include price/quantity/rate/efficiency breakdown.",
+      "when_to_use": "Cost accounting audit, ERP reconciliation, variance investigation"
+    }
+  }
+}

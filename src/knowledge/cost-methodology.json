@@ -1,0 +1,162 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "domain": "manufacturing_cost_analysis",
+    "currency": "AUD",
+    "last_updated": "2026-04-14"
+  },
+
+  "global_methodology_rules": [
+    {
+      "id": "COST-001",
+      "category": "cost_rules",
+      "rule": "Standard cost = SUM(component.standard_price × BOM_qty) + SUM(workcenter.costs_hour × operation_duration). Never mix standard and actual costs in the same calculation.",
+      "never": "Never use actual consumption quantities in standard cost calculations. Never use standard prices in actual cost calculations."
+    },
+    {
+      "id": "COST-002",
+      "category": "cost_rules",
+      "rule": "Actual cost = SUM(stock.move price_unit × quantity for consumed components) + SUM(workorder.actual_duration × workcenter.costs_hour). Include scrap valuations in actual cost.",
+      "never": "Never exclude scrap from actual cost. Never use planned duration for actual cost."
+    },
+    {
+      "id": "COST-003",
+      "category": "cost_rules",
+      "rule": "When DuraCube custom fields exist (std_cost, mo_cost on mrp.production), use these as primary source. Fall back to BOM rollup calculation when custom fields are empty or zero.",
+      "never": "Never ignore pre-calculated custom cost fields when they contain valid data."
+    },
+    {
+      "id": "BOM-001",
+      "category": "bom_rules",
+      "rule": "Phantom/Kit BOMs must be auto-exploded to their sub-components — never treat a phantom as a leaf node. Stop recursion only at purchased items (no child BOM) or service items.",
+      "never": "Never return phantom BOMs as leaf components. Never recurse into a BOM already visited (circular detection)."
+    },
+    {
+      "id": "BOM-002",
+      "category": "bom_rules",
+      "rule": "BOM quantities must be scaled to the manufacturing order quantity. If BOM is for 1 unit and MO is for 10, multiply all component quantities by 10 (bomQtyRatio = MO_qty / BOM_qty).",
+      "never": "Never present BOM quantities without scaling to the requested production quantity."
+    },
+    {
+      "id": "BOM-003",
+      "category": "bom_rules",
+      "rule": "If a component has its own child BOM (child_bom_id field or found via product_tmpl_id search), recursively calculate its cost from sub-components instead of using its standard_price directly.",
+      "never": "Never use standard_price for a manufactured component that has a BOM — always recurse."
+    },
+    {
+      "id": "VAR-001",
+      "category": "variance_rules",
+      "rule": "Total Variance = Actual Cost - Standard Cost. Positive = unfavorable (over budget). Negative = favorable (under budget). This sign convention must be consistent throughout all reports.",
+      "never": "Never flip the sign convention. Never report favorable variance as positive."
+    },
+    {
+      "id": "VAR-002",
+      "category": "variance_rules",
+      "rule": "Material Price Variance = (Actual Unit Price - Standard Unit Price) × Actual Quantity. Material Quantity Variance = (Actual Quantity - Standard Quantity) × Standard Unit Price.",
+      "never": "Never use actual price in quantity variance formula. Never use standard quantity in price variance formula."
+    },
+    {
+      "id": "VAR-003",
+      "category": "variance_rules",
+      "rule": "Labor Rate Variance = (Actual Rate - Standard Rate) × Actual Hours. Labor Efficiency Variance = (Actual Hours - Standard Hours) × Standard Rate.",
+      "never": "Never mix rate and efficiency components in variance calculations."
+    },
+    {
+      "id": "SCRAP-001",
+      "category": "variance_rules",
+      "rule": "Scrap impact must be calculated per GOOD unit produced: scrap_cost / good_units_produced. Scrap rate = scrap_qty / (good_qty + scrap_qty). Good units = total produced - scrapped.",
+      "never": "Never divide scrap cost by total units (good + scrap). The denominator for per-unit impact is GOOD units only."
+    },
+    {
+      "id": "GUARD-001",
+      "category": "data_guards",
+      "rule": "Flag standard_price = 0 as DATA QUALITY WARNING — do not calculate with zero prices. Flag BOM quantity = 0 as DATA ERROR — do not divide by zero. If MO has no work orders, use simplified material-only costing and note the limitation.",
+      "never": "Never silently accept zero prices as valid. Never fail silently when work orders are missing — degrade gracefully with a warning."
+    },
+    {
+      "id": "GUARD-002",
+      "category": "data_guards",
+      "rule": "If stock.move has no price_unit or price_unit = 0, flag as 'unvalued movement' and fall back to product.standard_price. Draft and cancelled MOs should be excluded from trend calculations unless explicitly requested.",
+      "never": "Never include draft/cancelled MOs in cost trend analysis by default."
+    },
+    {
+      "id": "ACCT-001",
+      "category": "accounting",
+      "rule": "All monetary values in company base currency (AUD). Round unit costs to 2 decimal places for display. Use 4 decimal places for intermediate calculations to avoid rounding errors.",
+      "never": "Never display more than 2 decimal places in final output."
+    },
+    {
+      "id": "ACCT-002",
+      "category": "accounting",
+      "rule": "WIP (Work In Progress) Manufacturing Orders that are not yet completed should show estimated completion cost based on current consumption, flagged clearly as ESTIMATE — not final.",
+      "never": "Never present WIP costs as final actual costs without an ESTIMATE flag."
+    },
+    {
+      "id": "ACCT-003",
+      "category": "accounting",
+      "rule": "Never modify Odoo data. All operations are READ-ONLY via XML-RPC search_read, read, and read_group methods only.",
+      "never": "Never call create, write, or unlink methods on any Odoo model."
+    }
+  ],
+
+  "significance_thresholds": {
+    "variance_minor_percent": 5,
+    "variance_significant_percent": 10,
+    "variance_critical_percent": 25,
+    "scrap_rate_warning_percent": 5,
+    "scrap_rate_critical_percent": 15,
+    "zero_price_flag": true,
+    "zero_qty_flag": true
+  },
+
+  "workflow_guidance": {
+    "recommended_tool_chain": [
+      "1. Start with search_manufacturing_orders to find the MO",
+      "2. Use get_mo_detail for full MO record with work orders and stock moves",
+      "3. Use get_bom_structure for hierarchical BOM tree with costs",
+      "4. Use calculate_standard_cost for planned/baseline cost",
+      "5. Use get_actual_mo_cost for realized cost (completed MOs only)",
+      "6. Use analyze_cost_variance for the variance dashboard",
+      "7. Use get_material_variance or get_labor_variance for drill-down"
+    ],
+    "aggregation_first": "When analyzing multiple MOs, use get_cost_trends or compare_mo_performance instead of calling get_actual_mo_cost repeatedly. Aggregation tools are more context-efficient.",
+    "estimation_workflow": "For pre-production analysis, use estimate_production_cost (no MO needed) or what_if_analysis for scenario modeling.",
+    "knowledge_first": "Call get_cost_methodology on first interaction to understand the domain rules, formulas, and terminology before analyzing data."
+  },
+
+  "terminology": {
+    "summary": {
+      "BOM": "Bill of Materials — the recipe for manufacturing a product",
+      "MO": "Manufacturing Order — an order to produce a specific quantity",
+      "WO": "Work Order — a task within an MO assigned to a work center",
+      "WC": "Work Center — a machine or station where work happens",
+      "Variance": "The difference between what it should cost and what it actually cost",
+      "Scrap": "Material wasted during production",
+      "Favorable": "Actual cost was LESS than expected — good news",
+      "Unfavorable": "Actual cost was MORE than expected — needs attention"
+    },
+    "detailed": {
+      "BOM": "Bill of Materials — hierarchical recipe defining components and operations needed to manufacture a product. Can be multi-level (sub-assemblies within assemblies).",
+      "Phantom BOM": "A virtual BOM that auto-explodes into its components. Never appears as a manufactured item — always breaks down to its parts.",
+      "Standard Cost": "Pre-determined cost calculated from BOM component prices + work center hourly rates × operation durations. Used as the baseline for variance analysis.",
+      "Actual Cost": "Realized cost from actual stock move valuations (what was really consumed) + actual work order durations × work center rates.",
+      "Price Variance": "(Actual Price - Standard Price) × Actual Qty — measures whether you paid more or less per unit than expected.",
+      "Quantity Variance": "(Actual Qty - Standard Qty) × Standard Price — measures whether you used more or less material than planned.",
+      "Rate Variance": "(Actual Rate - Standard Rate) × Actual Hours — measures whether labor cost more or less per hour than standard.",
+      "Efficiency Variance": "(Actual Hours - Standard Hours) × Standard Rate — measures whether work took more or less time than planned.",
+      "Scrap Rate": "scrap_qty / (good_qty + scrap_qty) — percentage of total output that was scrapped.",
+      "WIP": "Work In Progress — MO started but not yet completed. Costs are estimates until MO is done."
+    },
+    "technical": {
+      "mrp.production": "Odoo model for Manufacturing Orders. Key cost fields: std_cost, mo_cost, l_cost_diff, m_cost_diff.",
+      "mrp.bom": "Odoo model for Bill of Materials. Types: normal (standard), phantom (auto-explode), subcontract.",
+      "mrp.bom.line": "Odoo model for BOM component lines. Links to product_id with quantity and optional child_bom_id for recursion.",
+      "mrp.workorder": "Odoo model for Work Orders. duration_expected vs duration gives efficiency variance.",
+      "mrp.workcenter": "Odoo model for Work Centers. costs_hour is total; labour_cost_per_hour and wc_cost_per_hour split labor vs overhead.",
+      "stock.move": "Odoo model for inventory movements. raw_material_production_id links consumed materials to MO. price_unit gives actual unit cost.",
+      "stock.scrap": "Odoo model for scrap records. production_id links to MO.",
+      "stock.valuation.layer": "Odoo cost tracking layer. unit_cost and value fields for precise valuation.",
+      "GL Mapping": "Standard cost → Cost of Goods Manufactured. Variance → Manufacturing Variance account. WIP → Work in Progress account. Scrap → Scrap/Waste account."
+    }
+  }
+}
