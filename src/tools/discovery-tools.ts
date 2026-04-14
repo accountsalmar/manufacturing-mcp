@@ -78,7 +78,11 @@ export function registerDiscoveryTools(server: McpServer): void {
               md += `  Product: ${getRelationName(mo.product_id)} | Qty: ${mo.product_qty || '-'}\n`;
               md += `  State: ${formatMOState(mo.state)} | Start: ${formatDate(mo.date_start)}\n`;
               if (mo.std_cost !== undefined || mo.mo_cost !== undefined) {
-                md += `  Std Cost: ${formatCurrency(mo.std_cost)} | Actual: ${formatCurrency(mo.mo_cost)}\n`;
+                md += `  Std Cost: ${formatCurrency(mo.std_cost)} | Actual: ${formatCurrency(mo.mo_cost)}`;
+                if (mo.state === 'done' && (!mo.std_cost || mo.std_cost === 0) && (!mo.mo_cost || mo.mo_cost === 0)) {
+                  md += ` ⚠ No cost data`;
+                }
+                md += '\n';
               }
               if (mo.partner_id) md += `  Customer: ${getRelationName(mo.partner_id)}\n`;
               if (mo.analytic_account_id) md += `  Job: ${getRelationName(mo.analytic_account_id)}\n`;
@@ -287,15 +291,35 @@ export function registerDiscoveryTools(server: McpServer): void {
           if (input.category_id) domain.push(['categ_id', '=', input.category_id]);
           if (input.product_type) domain.push(['type', '=', input.product_type]);
 
-          const fields = MFG_FIELDS.PRODUCT_COST as unknown as string[];
-          const [records, total] = await Promise.all([
-            client.searchRead<ProductProduct>('product.product', domain, fields, {
-              offset: input.offset,
-              limit: input.limit,
-              order: 'name asc',
-            }),
-            client.searchCount('product.product', domain),
-          ]);
+          // Try with standard_price first, fall back if access denied
+          let fields = MFG_FIELDS.PRODUCT_COST_WITH_STD_PRICE as unknown as string[];
+          let records: ProductProduct[];
+          let total: number;
+          try {
+            [records, total] = await Promise.all([
+              client.searchRead<ProductProduct>('product.product', domain, fields, {
+                offset: input.offset,
+                limit: input.limit,
+                order: 'name asc',
+              }),
+              client.searchCount('product.product', domain),
+            ]);
+          } catch (error) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
+              fields = MFG_FIELDS.PRODUCT_COST as unknown as string[];
+              [records, total] = await Promise.all([
+                client.searchRead<ProductProduct>('product.product', domain, fields, {
+                  offset: input.offset,
+                  limit: input.limit,
+                  order: 'name asc',
+                }),
+                client.searchCount('product.product', domain),
+              ]);
+            } else {
+              throw error;
+            }
+          }
 
           const hasMore = input.offset + records.length < total;
 
@@ -310,7 +334,7 @@ export function registerDiscoveryTools(server: McpServer): void {
             md += `| ID | Ref | Name | Type | Std Cost |\n`;
             md += `|----|-----|------|------|----------|\n`;
             for (const p of records) {
-              md += `| ${p.id} | ${p.default_code || '-'} | ${p.name} | ${p.type || '-'} | ${formatCurrency(p.standard_price)} |\n`;
+              md += `| ${p.id} | ${p.default_code || '-'} | ${p.name} | ${p.type || '-'} | ${formatCurrency(p.standard_price || p.standard_cost_manual)} |\n`;
             }
           }
 

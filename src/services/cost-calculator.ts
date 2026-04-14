@@ -108,13 +108,27 @@ export async function calculateActualCost(
     totalMaterialCost += lineCost;
   }
 
-  // Fetch standard prices for components
+  // Fetch standard prices for components (with fallback for restricted standard_price)
   const productIds = Array.from(componentMap.keys());
   if (productIds.length > 0) {
-    const products = await client.read<ProductProduct>(
-      'product.product', productIds,
-      ['id', 'standard_price', 'standard_cost_manual']
-    );
+    let products: ProductProduct[];
+    try {
+      products = await client.read<ProductProduct>(
+        'product.product', productIds,
+        ['id', 'standard_price', 'standard_cost_manual']
+      );
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes('not have enough rights') || errMsg.includes('standard_price')) {
+        warnings.push('standard_price access denied — using standard_cost_manual as fallback.');
+        products = await client.read<ProductProduct>(
+          'product.product', productIds,
+          ['id', 'standard_cost_manual']
+        );
+      } else {
+        throw error;
+      }
+    }
     for (const p of products) {
       const comp = componentMap.get(p.id);
       if (comp) {

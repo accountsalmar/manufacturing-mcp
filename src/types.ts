@@ -43,8 +43,8 @@ export interface MrpProduction extends OdooRecord {
   date_start?: string;                       // Actual Start
   date_finished?: string;                    // Actual End
   date_deadline?: string;                    // Deadline
-  date_planned_start?: string;               // Planned Start
-  date_planned_finished?: string;            // Planned End
+  // Note: date_planned_start/date_planned_finished were removed in Odoo 17
+  // Use date_start and date_finished instead
   cm_date?: string;                          // Check Measure Date
   shipping_date?: string;
   install_date?: string;

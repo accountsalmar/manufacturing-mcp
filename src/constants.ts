@@ -37,7 +37,6 @@ export const MFG_FIELDS = {
     'partner_id', 'user_id', 'analytic_account_id', 'opportunity_id',
     'job_type', 'origin',
     'date_start', 'date_finished', 'date_deadline',
-    'date_planned_start', 'date_planned_finished',
     'estimator_id', 'project_manager_id',
   ] as string[],
 
@@ -50,7 +49,6 @@ export const MFG_FIELDS = {
     'partner_id', 'user_id', 'company_id',
     'analytic_account_id', 'opportunity_id', 'job_type', 'origin',
     'date_start', 'date_finished', 'date_deadline',
-    'date_planned_start', 'date_planned_finished',
     'cm_date', 'shipping_date', 'install_date', 'install_finish_date',
     'complete_date', 'finish_date', 'rff_date', 'fr_date',
     'estimator_id', 'project_manager_id', 'installer',
@@ -123,7 +121,17 @@ export const MFG_FIELDS = {
   ] as string[],
 
   // Product (cost lookup)
+  // Note: standard_price requires base.group_system in Odoo 17.
+  // We use standard_cost_manual (custom) and lst_price as fallbacks.
+  // standard_price is fetched separately with error handling.
   PRODUCT_COST: [
+    'id', 'name', 'default_code',
+    'standard_cost_manual', 'lst_price', 'uom_id', 'categ_id', 'type',
+    'product_tmpl_id',
+  ] as string[],
+
+  // Product with standard_price (requires Technical Features on API user)
+  PRODUCT_COST_WITH_STD_PRICE: [
     'id', 'name', 'default_code', 'standard_price',
     'standard_cost_manual', 'lst_price', 'uom_id', 'categ_id', 'type',
     'product_tmpl_id',
