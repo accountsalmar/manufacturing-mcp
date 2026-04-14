@@ -66,9 +66,16 @@ async function runHTTP(): Promise<void> {
     res.json({ status: 'ok', server: 'odoo-manufacturing-mcp-server', version: '1.0.0' });
   });
 
-  // MCP endpoint - stateless, creates new transport per request
+  // MCP endpoint - stateless, creates new server+transport per request
   app.post('/mcp', async (req, res) => {
     try {
+      // Create a fresh server instance per request (stateless mode)
+      const requestServer = new McpServer({
+        name: 'odoo-manufacturing-mcp-server',
+        version: '1.0.0'
+      });
+      registerAllTools(requestServer);
+
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // Stateless mode
         enableJsonResponse: true
@@ -78,11 +85,13 @@ async function runHTTP(): Promise<void> {
         transport.close();
       });
 
-      await server.connect(transport);
+      await requestServer.connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (error) {
       console.error('MCP request error:', error);
-      res.status(500).json({ error: 'Internal server error' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
   });
 
